@@ -20,6 +20,7 @@ bot = telebot.TeleBot('2102394221:AAGYEsIv5gCUJabqWDMZYJjNlUDxh54W78U')
 
 WEATHER_WORDS = ['погода', 'Погода']
 
+
 def check_login(message):
     user_id = message.from_user.id
     user = TelegramUser.objects.filter(user_telega_id=user_id)
@@ -39,7 +40,7 @@ def login_into_bot(message):
         if current_user.count() == 0:
             print(message.from_user)
             TelegramUser.objects.create(
-                user_telegra_id=id,
+                user_telega_id=id,
                 username=username,
                 first_name=message.from_user.first_name,
                 creation_date=now_time,
@@ -51,17 +52,14 @@ def login_into_bot(message):
         pass
 
 
-@bot.message_handler(commands=['start', 'help', 'login'])
+@bot.message_handler(commands=['start'])
 # @bot.message_handler(func=lambda message: 's' in str(message))
 def send_welcome(message):
     try:
-        print(message.message_id)
         # bot.reply_to(message, "Howdy, how are you doing?")
-        bot.send_message(message.chat.id, 'man that is nice')
-        bot.send_message(message.chat.id, message)
-        member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        print(member)
-        print(member.status)
+        login_into_bot(message)
+        bot.send_message(message.chat.id, (f'Просто здравствуй, {message.from_user.first_name}.\n'
+                                           'Просто как дела?'))
 
     except AttributeError:
         pass

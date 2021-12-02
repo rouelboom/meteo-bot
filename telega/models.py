@@ -19,7 +19,7 @@ class TelegramUser(models.Model):
     """
     # author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='telega_user')
     user_telega_id = models.IntegerField(primary_key=True, unique=True)
-    username = models.CharField(verbose_name='username', max_length=150)
+    username = models.CharField(verbose_name='username', max_length=150, null=True)
     first_name = models.CharField(verbose_name='first_name', max_length=150)
     creation_date = models.DateTimeField(verbose_name='creation_date')
     last_login_date = models.DateTimeField(verbose_name='creation_date')

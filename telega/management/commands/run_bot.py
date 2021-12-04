@@ -1,3 +1,4 @@
+import os
 import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
@@ -7,8 +8,12 @@ import telebot
 from telebot import types
 
 from .run_meteo import get_current_meteo_data
+from telega.const import BAD_WORDS, WEATHER_WORDS
+from telega.models import TelegramUser
+from dotenv import load_dotenv
 
-from telega.models import Things, TelegramUser
+load_dotenv()
+
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -16,9 +21,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-bot = telebot.TeleBot('2102394221:AAGYEsIv5gCUJabqWDMZYJjNlUDxh54W78U')
-
-WEATHER_WORDS = ['погода', 'Погода']
+bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 
 
 def check_login(message):
@@ -28,7 +31,6 @@ def check_login(message):
         login_into_bot(message)
 
 
-@bot.message_handler(commands=['qwe', 'login'])
 def login_into_bot(message):
     try:
         username = message.from_user.username
@@ -39,15 +41,17 @@ def login_into_bot(message):
         now_time = timezone.now()
         if current_user.count() == 0:
             print(message.from_user)
-            TelegramUser.objects.create(
+            return TelegramUser.objects.create(
                 user_telega_id=id,
                 username=username,
                 first_name=message.from_user.first_name,
                 creation_date=now_time,
                 last_login_date=now_time
             )
+
         else:
             current_user.update(last_login_date=now_time)
+            return current_user
     except KeyError as e:
         pass
 
@@ -73,14 +77,7 @@ def clear_chat(message):
         chat_id = message.chat.id
         a = types.ChatPermissions(can_invite_users=True)
         print(last_message)
-        # print(bot.get_me())
-        # print(a)
         flag = bot.get_chat_administrators(chat_id)
-        print('flag', flag)
-        # print('qeqweq')
-        # link = bot.create_chat_invite_link(chat_id=chat_id)
-        # bot.send_message(chat_id=chat_id)
-        # bot.delete_message(chat_id=chat_id, message_id=last_message)
         for message in range(10, last_message):
             print(message)
             bot.delete_message(chat_id, message)
@@ -98,38 +95,55 @@ def secret_message(message):
         pass
 
 
+@bot.message_handler(commands=['unban'])
+def unban_handler(message):
+    user = login_into_bot(message)
+    user.update(ban=False)
+    bot.send_message(message.chat.id, 'Вы были разблокированы')
+
+
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def default_command(message):
     # first need to check user to ban\block
     user_id = message.from_user.id
+    chat_id = message.chat.id
     user = TelegramUser.objects.filter(user_telega_id=user_id)
     if user.count() != 0:
-        login_into_bot(message)
-    print(user.count())
+        user = login_into_bot(message)
+    if user[0].ban:
+        bot.send_message(chat_id, 'Вам запрещенно общаться с этим ботом')
+        return
     # print(user.ban)
-    if 'wtf' in message.text:
-        bot.send_message(message.chat.id, "У нас не ругаются. Вы в бане")
-    if 'погода' in message.text or 'Погода' in message.text:
-        text = message.text
-        text_list = text.split(' ')
-        if len(text_list) == 2:
-            for word in text_list:
-                if word not in WEATHER_WORDS:
-                    result = get_current_meteo_data(word)
-                    if result.get('error'):
-                        bot.send_message(message.chat.id, f"Что-то пошло не так: {result['error']}'")
-                    else:
-                        info_message = f'Погода в городе {result["city"]}:\n' \
-                                       f'Температура {result["temp"]}, {result["description"]}\n' \
-                                       f'Ощущается как {result["feels_like"]}\n' \
-                                       f'Скорость ветра {result["wind_speed"]}м/с\n'
-                        bot.send_message(message.chat.id, info_message)
-                    break
+    for word in BAD_WORDS:
+        if word in message.text:
+            user.update(ban=True, ban_date=timezone.now())
+            bot.send_message(chat_id, "У нас не ругаются. Вы в бане")
+            return
+
+    for weather_word in WEATHER_WORDS:
+        if weather_word in message.text:
+            text = message.text
+            text_list = text.split(' ')
+            if len(text_list) == 2:
+                for word in text_list:
+                    if word not in WEATHER_WORDS:
+                        result = get_current_meteo_data(word)
+                        if result.get('error'):
+                            bot.send_message(chat_id, f"Что-то пошло не так: {result['error']}'")
+                            break
+                        else:
+                            info_message = f'Погода в городе {result["city"]}:\n' \
+                                           f'Температура {result["temp"]}, {result["description"]}\n' \
+                                           f'Ощущается как {result["feels_like"]}\n' \
+                                           f'Скорость ветра {result["wind_speed"]}м/с\n'
+                            bot.send_message(chat_id, info_message)
+                            break
+
+                break
         else:
-            bot.send_message(message.chat.id, ("Кажется хотите узнать погоду?"
-                                               "Укажите город, допустим: 'погода Калуга'"))
-        print(text_list)
-        # info = get_current_meteo_data()
+            bot.send_message(chat_id, ("Кажется хотите узнать погоду?"
+                                       "Укажите город, допустим: 'погода Калуга'"))
+            break
 
 
 class Command(BaseCommand):

@@ -3,9 +3,7 @@ import asyncio
 import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from pyowm import OWM
-from pyowm.utils import config
-from pyowm.utils import timestamps
+
 import requests
 import transliterate
 
@@ -14,19 +12,46 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from telega.models import Things, TelegramUser, MeteoData
+from telega.models import Things, TelegramUser, MeteoData, CityData
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
+WEATHER_APP_ID = os.getenv('OPEN_WEATHER_API_KEY')
+
+
+def create_new_city(city):
+    city_transliterated = transliterate.translit(city.lower(), language_code='ru', reversed=True)
+    print(city_transliterated)
+
+    city_and_country = f'{city_transliterated},RU'
+    looking_id = None
+    try:
+        res = requests.get("http://api.openweathermap.org/data/2.5/find",
+                           params={'q': city_and_country, 'type': 'like',
+                                   'lang': 'ru',
+                                   'units': 'metric', 'APPID': WEATHER_APP_ID})
+        data = res.json()
+        print(data)
+        for item in data['list']:
+            if item['name'].lower() == city_transliterated:
+                print(item['name'].lower(), city_transliterated)
+                info = item
+                looking_id = item['id']
+                break
+
+    except Exception:
+        pass
+
 
 
 def get_current_meteo_data(city) -> dict:
-    weather_api_id = os.getenv('OPEN_WEATHER_API_KEY')
-    owm = OWM(weather_api_id)
-    mgr = owm.weather_manager()
+    # city_query = CityData.objects.filter(city_ru=city.lower())
+    # if city_query.count() == 0:
+    #     pass
+
     if city.lower() == 'москва':
         city_transliterated = 'moscow'
     elif city.lower() in ['питер', 'санкт-петербург']:
@@ -41,7 +66,7 @@ def get_current_meteo_data(city) -> dict:
         res = requests.get("http://api.openweathermap.org/data/2.5/find",
                            params={'q': city_and_country, 'type': 'like',
                                    'lang': 'ru',
-                                   'units': 'metric', 'APPID': weather_api_id})
+                                   'units': 'metric', 'APPID': WEATHER_APP_ID})
         data = res.json()
         print(data)
         for item in data['list']:
@@ -51,14 +76,13 @@ def get_current_meteo_data(city) -> dict:
                 looking_id = item['id']
                 break
         if looking_id is None:
-            print('City is not found')
             return {'error': 'город не найден'}
 
         # res = requests.get("http://api.openweathermap.org/data/2.5/weather",
         #                    params={'id': looking_id, 'units': 'metric', 'lang': 'ru',
         #                            'APPID': weather_api_id})
         # info = res.json()
-        print(info)
+        # print(info)
         weather = {
             'description': info['weather'][0]['description'],
             'temp': info['main']['temp'],
@@ -68,7 +92,9 @@ def get_current_meteo_data(city) -> dict:
             'wind_speed': info['wind']['speed']
         }
 
-        print(weather)
+        # print(weather)
+
+        # mgr.one_call()
         return weather
     except Exception as e:
         print("Exception (weather):", e)

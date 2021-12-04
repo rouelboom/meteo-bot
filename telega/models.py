@@ -13,6 +13,18 @@ class MeteoData(models.Model):
     humidity = models.FloatField(verbose_name='humidity')
 
 
+class CityData(models.Model):
+    """
+    Data about city in OpenWeatherMap
+    """
+    city_id = models.IntegerField()
+    name = models.CharField(max_length=100)
+    name_ru = models.CharField(max_length=100)
+    county_prefix = models.CharField(max_length=20)
+    latitude = models.FloatField(verbose_name='Широта')
+    longitude = models.FloatField(verbose_name='Долгота')
+
+
 class TelegramUser(models.Model):
     """
     All the users of bot
@@ -25,6 +37,6 @@ class TelegramUser(models.Model):
     last_login_date = models.DateTimeField(verbose_name='creation_date')
     ban = models.BooleanField(verbose_name='ban', default=False)
     temp_block = models.BooleanField(default=False, null=True)
-    bad_date = models.DateTimeField(null=True)
+    ban_date = models.DateTimeField(null=True)
     temp_block_date = models.DateTimeField(null=True)
     phone_number = models.CharField(null=True, max_length=30)

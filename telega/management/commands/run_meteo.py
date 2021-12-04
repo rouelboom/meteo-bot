@@ -22,12 +22,11 @@ logger = logging.getLogger(__name__)
 WEATHER_APP_ID = os.getenv('OPEN_WEATHER_API_KEY')
 
 
-def create_new_city(city):
+def create_new_city(city) -> int:
     city_transliterated = transliterate.translit(city.lower(), language_code='ru', reversed=True)
     print(city_transliterated)
 
     city_and_country = f'{city_transliterated},RU'
-    looking_id = None
     try:
         res = requests.get("http://api.openweathermap.org/data/2.5/find",
                            params={'q': city_and_country, 'type': 'like',
@@ -35,54 +34,55 @@ def create_new_city(city):
                                    'units': 'metric', 'APPID': WEATHER_APP_ID})
         data = res.json()
         print(data)
+        if data.get('list') is None:
+            print('data list is none')
+            return -1
+        if len(data['list']) == 1:
+            item = data['list'][0]
+            new_city = CityData.objects.create(
+                city_id=item['id'],
+                name=item['name'],
+                name_ru=city.lower(),
+                latitude=item['coord']['lat'],
+                longitude=item['coord']['lon'],
+                county_prefix=item['sys']['country'],
+            )
+            return new_city.city_id
+        city_id = -1
+        # if len(data['list'] == 2):
+        #     if data['list'][0]['coord']['lat'] -
         for item in data['list']:
-            if item['name'].lower() == city_transliterated:
-                print(item['name'].lower(), city_transliterated)
-                info = item
-                looking_id = item['id']
-                break
+            new_city = CityData.objects.create(
+                city_id=item['id'],
+                name=item['name'],
+                name_ru=city.lower(),
+                latitude=item['coord']['lat'],
+                longitude=item['coord']['lon'],
+                county_prefix=item['sys']['country'],
+            )
+            if len(item['name'].split(' ')) == len(list(city)):
+                print('we are here')
+                city_id = new_city.id
+        return city_id
 
     except Exception:
         pass
 
 
-
 def get_current_meteo_data(city) -> dict:
-    # city_query = CityData.objects.filter(city_ru=city.lower())
-    # if city_query.count() == 0:
-    #     pass
-
-    if city.lower() == 'москва':
-        city_transliterated = 'moscow'
-    elif city.lower() in ['питер', 'санкт-петербург']:
-        city_transliterated = 'saint petersburg'
-    else:
-        city_transliterated = transliterate.translit(city.lower(), language_code='ru', reversed=True)
-    print(city_transliterated)
-
-    city_and_country = f'{city_transliterated},RU'
-    looking_id = None
-    try:
-        res = requests.get("http://api.openweathermap.org/data/2.5/find",
-                           params={'q': city_and_country, 'type': 'like',
-                                   'lang': 'ru',
-                                   'units': 'metric', 'APPID': WEATHER_APP_ID})
-        data = res.json()
-        print(data)
-        for item in data['list']:
-            if item['name'].lower() == city_transliterated:
-                print(item['name'].lower(), city_transliterated)
-                info = item
-                looking_id = item['id']
-                break
-        if looking_id is None:
+    city_query = CityData.objects.filter(name_ru=city.lower())
+    if city_query.count() == 0:
+        city_id = create_new_city(city)
+        if city_id == -1:
             return {'error': 'город не найден'}
+    else:
+        city_id = city_query[0].city_id
 
-        # res = requests.get("http://api.openweathermap.org/data/2.5/weather",
-        #                    params={'id': looking_id, 'units': 'metric', 'lang': 'ru',
-        #                            'APPID': weather_api_id})
-        # info = res.json()
-        # print(info)
+        res = requests.get("http://api.openweathermap.org/data/2.5/weather",
+                           params={'id': city_id, 'units': 'metric', 'lang': 'ru',
+                                   'APPID': WEATHER_APP_ID})
+        info = res.json()
+        print(info)
         weather = {
             'description': info['weather'][0]['description'],
             'temp': info['main']['temp'],
@@ -92,13 +92,10 @@ def get_current_meteo_data(city) -> dict:
             'wind_speed': info['wind']['speed']
         }
 
-        # print(weather)
+        print(weather)
 
         # mgr.one_call()
         return weather
-    except Exception as e:
-        print("Exception (weather):", e)
-        pass
 
 
 async def run_meteo():

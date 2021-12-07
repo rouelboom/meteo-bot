@@ -33,7 +33,7 @@ def create_new_city(city) -> int:
                                    'lang': 'ru',
                                    'units': 'metric', 'APPID': WEATHER_APP_ID})
         data = res.json()
-        print(data)
+        # print(data)
         if data.get('list') is None:
             print('data list is none')
             return -1
